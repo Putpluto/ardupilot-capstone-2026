@@ -139,6 +139,7 @@ private:
     float _high_g_scale = 0;
     Vector3f _high_g_offset;            // high-g minus low-g, m/s/s, sensor frame
     uint16_t _high_g_offset_n = 0;      // samples in the offset estimate, capped at the sample rate
+    bool _high_g_learnt = false;        // offset estimate updated since the last IHGA message
     uint16_t _high_g_hold = 0;          // samples left on the high-g channel
     uint16_t _high_g_hold_samples = 0;
     uint8_t _high_g_missing = 0;        // low-g samples in a row without a high-g partner

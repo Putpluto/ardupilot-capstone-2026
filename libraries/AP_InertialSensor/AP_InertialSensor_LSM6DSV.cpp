@@ -23,8 +23,8 @@
   with base rate 1000 Hz.
 
   On the WHO_AM_I 0x73 parts the high-g accelerometer is batched next to
-  the low-g one and replaces it while a shock is beyond the low-g range,
-  see select_accel().
+  the low-g one and replaces it while a shock is beyond the low-g range.
+  Its offset is learnt only while disarmed and still, see select_accel().
  */
 
 #include "AP_InertialSensor_LSM6DSV.h"
@@ -80,6 +80,11 @@ static_assert(LSM6DSV_HIGH_G_FS_G == 32 || LSM6DSV_HIGH_G_FS_G == 64 || LSM6DSV_
 #define LSM6DSV_LOW_G_FULL_SCALE_G          15.5f
 // the high-g zero-g offset (typ. ±1.5 g) is learnt against low-g while both are below this
 #define LSM6DSV_HIGH_G_TRACK_G              8.0f
+// ...and only while disarmed with vibration (VIBE, m/s/s) below this. Under motor vibration
+// the mean of (high-g - low-g) over the samples inside that window is biased, because the two
+// channels are filtered differently: on 2026-10-19 it drifted by 2 m/s/s in flight while half
+// the samples came from high-g, and the EKF integrated the error into a false climb.
+#define LSM6DSV_HIGH_G_LEARN_VIBE           3.0f
 // high-g is not used before the offset has this many samples, or while it is above this
 #define LSM6DSV_HIGH_G_OFFSET_MIN_SAMPLES   64
 #define LSM6DSV_HIGH_G_OFFSET_MAX_G         4.0f
@@ -849,7 +854,8 @@ void AP_InertialSensor_LSM6DSV::publish_unpaired_low_g()
   The low-g channel clips at 16 g ahead of its LPF2, which then smooths the clipped
   peaks to below full scale, so the switch is made on the high-g reading (no LPF2,
   64 g or more). The high-g zero-g offset (typ. ±1.5 g) is learnt against low-g while
-  both are well within range: a cumulative mean at first, then a 1 s time constant.
+  disarmed, still and both well within range: a cumulative mean at first, then a 1 s
+  time constant. Armed, the estimate from the ground is kept.
  */
 Vector3f AP_InertialSensor_LSM6DSV::select_accel(const Vector3f &lg, const Vector3f *hg_raw)
 {
@@ -874,12 +880,15 @@ Vector3f AP_InertialSensor_LSM6DSV::select_accel(const Vector3f &lg, const Vecto
         return hg;
     }
 
-    if (abs_max(lg) < LSM6DSV_HIGH_G_TRACK_G * GRAVITY_MSS &&
-        abs_max(hg) < LSM6DSV_HIGH_G_TRACK_G * GRAVITY_MSS) {
+    if (!hal.util->get_soft_armed() &&
+        abs_max(lg) < LSM6DSV_HIGH_G_TRACK_G * GRAVITY_MSS &&
+        abs_max(hg) < LSM6DSV_HIGH_G_TRACK_G * GRAVITY_MSS &&
+        abs_max(_imu.get_vibration_levels(accel_instance)) < LSM6DSV_HIGH_G_LEARN_VIBE) {
         if (_high_g_offset_n < _backend_rate_hz) {
             _high_g_offset_n++;
         }
         _high_g_offset += (*hg_raw - lg - _high_g_offset) / float(_high_g_offset_n);
+        _high_g_learnt = true;
     }
     return lg;
 }
@@ -903,14 +912,17 @@ void AP_InertialSensor_LSM6DSV::log_high_g()
 // @Field: OZ: high-g minus low-g offset, sensor Z axis
 // @Field: Used: samples taken from the high-g channel since boot
 // @Field: Unp: low-g samples published without a high-g partner since boot
-    AP::logger().Write("IHGA", "TimeUS,I,OX,OY,OZ,Used,Unp", "QBfffII",
+// @Field: Lrn: 1 if the offset was learnt since the previous message (disarmed and still only)
+    AP::logger().Write("IHGA", "TimeUS,I,OX,OY,OZ,Used,Unp,Lrn", "QBfffIIB",
                        AP_HAL::micros64(),
                        accel_instance,
                        _high_g_offset.x,
                        _high_g_offset.y,
                        _high_g_offset.z,
                        _high_g_used,
-                       _high_g_unpaired);
+                       _high_g_unpaired,
+                       uint8_t(_high_g_learnt));
+    _high_g_learnt = false;
 }
 #endif
 
