@@ -5,13 +5,13 @@ crystal. ArduPilot treats it as an STM32H743.
 
 ## Features
 
-- MCU: STM32H753VI, 480 MHz, 2 MB flash
+- MCU: STM32H753VI, 400 MHz (ArduPilot's clock setting for a 25 MHz crystal), 2 MB flash
 - IMU: U3 on SPI4, reporting WHO_AM_I 0x73 (LSM6DSV320X / LSM6DSV80X / ISM6HG256X),
   handled by the LSM6DSV driver
 - Barometer: MS5611 on I2C2 (address 0x77)
 - microSD card on SDMMC2 for logging
-- 3 UARTs plus USB
-- 8 PWM outputs (4 motors, 4 servos)
+- 2 UARTs plus USB
+- 9 PWM outputs (4 motors, 5 servos)
 - Battery current input
 
 ## Pinout
@@ -20,7 +20,7 @@ crystal. ArduPilot treats it as an STM32H743.
 |---|---|---|---|---|
 | J7 power | GND | VBAT | VBAT | BATT_CURR |
 | J9 GPS (SERIAL1) | 5V | RX | TX | GND |
-| J11 ELRS (SERIAL2) | 5V | TX | RX | GND |
+| J11 ELRS port | 5V | servo 9 (PB13) | unused (PB12) | GND |
 | J6 MAVLink (SERIAL3) | **GND** | RX | TX | **5V** |
 | J2 I2C (external) | 5V | SDA | SCL | GND |
 | J8 motors | M1 | M2 | M3 | M4 |
@@ -35,7 +35,7 @@ J9 puts the FC's RX on pin 2, unlike the Pixhawk GPS convention.
 |---|---|---|---|
 | SERIAL0 | USB | PA12/PA11 | MAVLink2 |
 | SERIAL1 | USART1 | PA9/PA10 | GPS |
-| SERIAL2 | UART5 | PB13/PB12 | RC input (CRSF/ELRS and others) |
+| SERIAL2 | none | - | unused; UART5's pins are reassigned (see PWM Output) |
 | SERIAL3 | UART8 | PE1/PE0 | MAVLink2, 57600 |
 
 ## PWM Output
@@ -44,14 +44,23 @@ J9 puts the FC's RX on pin 2, unlike the Pixhawk GPS convention.
 |---|---|---|---|
 | 1-4 | PA0-PA3 | TIM2 | Motors M1-M4, DShot and bidirectional DShot capable |
 | 5-8 | PD12-PD15 | TIM4 | Servos S1-S4 |
+| 9 | PB13 | TIM1 (CH1N) | Servo on the ELRS port (J11 pin 2) |
 
 Outputs within the same timer must use the same protocol.
 
+The ELRS port no longer carries a UART. To use an RC receiver, connect it to J6 and set
+`SERIAL3_PROTOCOL` 23 (this replaces MAVLink telemetry on J6).
+
 ## Battery Monitoring
 
-Only current can be measured, on PC0 (`BATT_CURR_PIN` 10). The battery voltage divider is
-wired to PC13, which has no ADC channel, so no battery monitor is enabled by default. Rerouting
-the divider to PC1, PC2_C, PC3_C or PA8 would fix this. VDDA is about 3.22 V.
+The battery voltage divider was originally wired to PC13, which has no ADC channel. It has been
+reworked onto **PC1** (ADC1 channel 11, `BATT_VOLT_PIN` 11), and a voltage-only battery monitor
+(`BATT_MONITOR` 3) is enabled by default. Bench calibration on 2026-09-17 gave
+`pack = 7.547 x V(PC1) + 0.287 V`, so `BATT_VOLT_MULT` is 7.547 and `BATT_VLT_OFFSET` is -0.038.
+VDDA is about 3.22 V, which PC1 reaches at about 24.6 V: the divider suits packs up to 5S, **not 6S**.
+
+Current is wired on PC0 (`BATT_CURR_PIN` 10) but is not enabled: its 17.0 A/V scale is an unverified
+placeholder. Calibrate `BATT_AMP_PERVLT` against a clamp meter before switching to `BATT_MONITOR` 4.
 
 ## Compass
 

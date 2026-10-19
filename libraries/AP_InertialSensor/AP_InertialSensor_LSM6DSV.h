@@ -57,13 +57,21 @@ private:
         GyroNC_T1 = 0x0B,
         Gyro2xC = 0x0C,
         Gyro3xC = 0x0D,
-        RouteExt = 0x1D,
+        AccelHG = 0x1D,     // high-g accelerometer on the 0x73 parts
         Unsupported = 0xFF,
     };
 
     struct SampleFrame {
         Vector3f gyro;
         Vector3f accel;
+        Vector3f accel_hg;
+    };
+
+    // a low-g or high-g sample waiting for its partner from the same FIFO time slot
+    struct PendingAccel {
+        Vector3f accel;
+        uint8_t tag_cnt = 0;
+        bool valid = false;
     };
 
     struct FifoFrame {
@@ -84,6 +92,7 @@ private:
     bool configure_gyro();
     bool configure_accel();
     bool configure_primary_fifo();
+    bool configure_high_g();
     bool wait_for_data_ready();
 
     bool read_registers(uint8_t reg, uint8_t *data, uint8_t len);
@@ -93,7 +102,14 @@ private:
     bool consume_fifo_word(FifoFrame &frame, SampleFrame &sample, const uint8_t *raw_word);
     uint16_t drain_fifo(uint32_t now_us);
     void publish_gyro_sample(SampleFrame &sample);
-    void publish_accel_sample(SampleFrame &sample);
+    void publish_accel_sample(Vector3f accel);
+    void handle_low_g(const Vector3f &lg, uint8_t tag_cnt);
+    void handle_high_g(const Vector3f &hg, uint8_t tag_cnt);
+    void publish_unpaired_low_g();
+    Vector3f select_accel(const Vector3f &lg, const Vector3f *hg_raw);
+#if HAL_LOGGING_ENABLED
+    void log_high_g();
+#endif
     void check_register_monitor();
     void update_temperature();
     uint8_t odr_code_for_rate(uint16_t rate_hz) const;
@@ -117,4 +133,18 @@ private:
     bool _fast_sampling = false;
     LSM6DSV_Type _lsm6dsv_type;
     uint8_t *_fifo_buffer;
+
+    // high-g accelerometer (0x73 parts), see select_accel()
+    bool _high_g = false;
+    float _high_g_scale = 0;
+    Vector3f _high_g_offset;            // high-g minus low-g, m/s/s, sensor frame
+    uint16_t _high_g_offset_n = 0;      // samples in the offset estimate, capped at the sample rate
+    uint16_t _high_g_hold = 0;          // samples left on the high-g channel
+    uint16_t _high_g_hold_samples = 0;
+    uint8_t _high_g_missing = 0;        // low-g samples in a row without a high-g partner
+    uint32_t _high_g_used = 0;
+    uint32_t _high_g_unpaired = 0;
+    uint32_t _high_g_log_ms = 0;
+    PendingAccel _pending_lg;
+    PendingAccel _pending_hg;
 };

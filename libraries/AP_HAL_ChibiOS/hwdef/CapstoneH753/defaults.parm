@@ -4,3 +4,6 @@ FRAME_TYPE 1
 
 # SERIAL3 (UART8, J6) MAVLink telemetry at 57600
 SERIAL3_BAUD 57
+
+# battery voltage divider on PC1 (see hwdef.dat): pack = (V(PC1) + 0.038) * 7.547
+BATT_VLT_OFFSET -0.038
