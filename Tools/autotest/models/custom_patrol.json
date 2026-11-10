@@ -1,0 +1,54 @@
+# 7 inch Autonomous Patrol model (Realistic Aerodynamics & Physics)
+
+{
+    "mass" : 0.81,
+
+    "diagonal_size" : 0.40,
+
+    # Aerodynamic Drag Adjustments
+    # A drone carrying an edge computer and camera has a larger frontal area.
+    # It will hit terminal velocity at a shallower angle, drawing more current to push air.
+    "refSpd" : 18.0, 
+    "refAngle" : 35.0, 
+    "refVoltage" : 21.6, # Realistic nominal operating voltage under load for 6S
+    "refCurrent" : 14.5, # 8A is too low; 7-inch props cruising at 18m/s pull closer to 14.5A
+    "refAlt" : 500, 
+    "refTempC" : 25, 
+    "refBatRes" : 0.024, 
+
+    "maxVoltage" : 25.2,
+    "battCapacityAh" : 4.95,
+
+    # Thrust & Motor Dynamics
+    # 7-inch bi-blades have a highly non-linear thrust curve on 2807 stators.
+    "propExpo" : 0.71, 
+
+    # Rotational Inertia
+    # 500 deg/sec is too fast. The momentum of 7-inch props and payload weight at the center
+    # makes the yaw axis sluggish. 350 deg/sec prevents simulator overshoot.
+    "refRotRate" : 350,
+
+    # Hover Throttle Math
+    # 4x 2807 1300KV motors on 6S = ~6.0kg total max thrust. 
+    # 0.81kg / 6.0kg = 0.135 (13.5% throttle required to fight gravity).
+    "hoverThrOut" : 0.135,
+
+    "pwmMin" : 1000,
+    "pwmMax" : 2000,
+
+    # Motor Stall Prevention
+    # 3% minimum spin is too low for heavy 7-inch props in a steep descent. 
+    # 5% accurately simulates the idle RPM needed to prevent motor stalling and desyncs.
+    "spin_min" : 0.05,
+    "spin_max" : 0.95,
+
+    "slew_max" : 0,
+
+    "disc_area" : 0.0993,
+
+    # Momentum Drag
+    # Large 7-inch discs create significant momentum drag when moving horizontally.
+    "mdrag_coef" : 0.12,
+
+    "num_motors" : 4
+}

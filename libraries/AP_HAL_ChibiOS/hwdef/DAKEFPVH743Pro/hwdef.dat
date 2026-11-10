@@ -1,35 +1,45 @@
-# hw definition file for processing by chibios_hwdef.py
-# for DAKEFPVH743 hardware.
-# Custom mod: I2C IMU (ASM330), GPS on USART1, 4 Servos, NO OSD, NO External Flash, NO Baro
+# hw definition file for generic STM32H743VIT6 dev board
+# Custom mod: I2C IMU (ASM330), GPS on USART1, 4 Servos, NO OSD, NO Ext Flash, NO Baro
 
 # MCU class and specific type
 MCU STM32H7xx STM32H743xx
 
-# board ID for firmware load
-APJ_BOARD_ID AP_HW_DAKEFPVH743PRO
+# Board ID for firmware load
+APJ_BOARD_ID AP_HW_H743VIT6_DEV
 
-# crystal frequency, setup to use external oscillator
+# Crystal frequency (Most generic H743 boards use 25MHz external oscillators)
 OSCILLATOR_HZ 25000000
-MCU_CLOCKRATE_MHZ 480
 FLASH_SIZE_KB 2048
 
-# bootloader takes first sector
-FLASH_RESERVE_START_KB 384
+# Bootloader takes first 128KB on H7 (Sector 0)
+FLASH_RESERVE_START_KB 128
 
-# Parameter storage in INTERNAL flash
+# Parameter storage in INTERNAL flash (Sector 1)
 define HAL_STORAGE_SIZE 16384
 define STORAGE_FLASH_PAGE 1
 
-# ChibiOS system timer
+# System timer
 STM32_ST_USE_TIMER 12
 define CH_CFG_ST_RESOLUTION 16
+
+# Onboard Status LED (Common on WeAct STM32H743 is PE3. Change to PC13 if needed)
+PE3 LED_BLUE OUTPUT LOW GPIO(0)
+define HAL_GPIO_A_LED_PIN 0
 
 # Beeper
 PC2 BUZZER OUTPUT GPIO(80) LOW PULLDOWN
 define HAL_BUZZER_PIN 80
 
-# SERIAL ports
-SERIAL_ORDER OTG1 USART1 USART2 USART3 UART4 UART5 USART6 UART7 UART8
+# ----------------- PWM OUTPUTS (4 Servos) -----------------
+# Mapped to TIM2 (PA0 - PA3)
+PA0 TIM2_CH1 TIM2 PWM(1) NODMA
+PA1 TIM2_CH2 TIM2 PWM(2) NODMA
+PA2 TIM2_CH3 TIM2 PWM(3) NODMA
+PA3 TIM2_CH4 TIM2 PWM(4) NODMA
+
+# ----------------- SERIAL PORTS -----------------
+# Order: USB, GPS(1), RCIN(5), Telemetry(3)
+SERIAL_ORDER OTG1 USART1 UART5 USART3
 
 # USB and Debug Pins
 PA11 OTG_FS_DM OTG1
@@ -42,58 +52,33 @@ PA10 USART1_RX USART1
 PA9 USART1_TX USART1
 define DEFAULT_SERIAL1_PROTOCOL SerialProtocol_GPS
 
-# USART2
-PD5 USART2_TX USART2 NODMA
-PD6 USART2_RX USART2 NODMA
-
-# USART3 (ESC Telemetry)
-PD8 USART3_TX USART3 NODMA
-PD9 USART3_RX USART3 NODMA
-define DEFAULT_SERIAL3_PROTOCOL SerialProtocol_ESCTelemetry
-
-# UART4 (MSP DisplayPort)
-PB8 UART4_RX UART4
-PB9 UART4_TX UART4
-define DEFAULT_SERIAL4_PROTOCOL SerialProtocol_MSP_DisplayPort
-
-# UART5 (RC Input)
+# UART5 (RC Input - Ideal for CRSF/ELRS or SBUS)
 PB5 UART5_RX UART5
 PB6 UART5_TX UART5
 define DEFAULT_SERIAL5_PROTOCOL SerialProtocol_RCIN
 
-# USART6
-PC6 USART6_TX USART6
-PC7 USART6_RX USART6
+# USART3 (Telemetry)
+PD8 USART3_TX USART3
+PD9 USART3_RX USART3
 
-# UART7
-PE7 UART7_RX UART7
-PE8 UART7_TX UART7
-
-# UART8
-PE0 UART8_RX UART8 NODMA
-PE1 UART8_TX UART8 NODMA
-
-# CAN bus
-PD0 CAN1_RX CAN1
-PD1 CAN1_TX CAN1
-PD2 GPIO_CAN1_SILENT OUTPUT PUSHPULL SPEED_LOW LOW GPIO(70)
-
-# I2C ports configuration
+# ----------------- I2C & SENSORS -----------------
 I2C_ORDER I2C2
+
 # I2C2 Hardware Pins
 PB10 I2C2_SCL I2C2
 PB11 I2C2_SDA I2C2
 
-# IMU Driver Configuration for I2C mode
-# ArduPilot addresses the ASM330 family using the LSM9DS1 driver.
-# Maps to I2C_ORDER bus index 0 (I2C2), default address 0x6A (SA0 pulled LOW).
-IMU LSM9DS1 I2C:0:0x6A
+# IMU Configuration (Requires your custom ASM330 driver compiled in your tree)
+IMU ASM330 I2C:0:0x6A ROTATION_NONE
 
-# Barometer bypass for bench testing
+# Disable Barometer for bench testing
 define AP_BARO_BACKEND_DEFAULT_ENABLED 0
 define HAL_BARO_ALLOW_NODETECT 1
 
-# ADC ports
+# Disable External Compass (Minimal Build)
+define HAL_COMPASS_DEFAULT HAL_COMPASS_NONE
+
+# ----------------- ADC -----------------
 # ADC1 - Current Sensor
 PC0 BATT_CURRENT_SENS ADC1 SCALE(1)
 define HAL_BATT_CURR_PIN 10
